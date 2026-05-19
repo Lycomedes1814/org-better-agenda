@@ -129,6 +129,21 @@ Returns nil on any parse error so a bad timestamp never breaks the agenda."
             (format "%d%s%s" day sep month-name)))
       (error nil))))
 
+(defun org-better-agenda--days-until (datestr)
+  "Return integer days from today until DATESTR, or nil on parse error."
+  (when datestr
+    (condition-case nil
+        (let* ((ts    (org-time-string-to-time datestr))
+               (today (float-time (apply #'encode-time
+                                         (let ((d (decode-time)))
+                                           (setf (nth 0 d) 0
+                                                 (nth 1 d) 0
+                                                 (nth 2 d) 0)
+                                           d))))
+               (diff  (- (float-time ts) today)))
+          (round (/ diff 86400)))
+      (error nil))))
+
 (defun org-better-agenda-entry-date-info ()
   "Return readable DEADLINE/SCHEDULED info for the current agenda entry.
 Shows both dates when present, separated by \" · \"."
@@ -146,6 +161,23 @@ Shows both dates when present, separated by \" · \"."
                    (format "%s: %s" sc-label (org-better-agenda-format-date scheduled)))
                  (when deadline
                    (format "%s: %s" dl-label (org-better-agenda-format-date deadline)))))))
+    (string-join parts " · ")))
+
+(defun org-better-agenda-entry-days-left ()
+  "Return DEADLINE/SCHEDULED info showing days remaining as a colored Nd string."
+  (let* ((el        (org-element-at-point))
+         (dl-ts     (org-element-property :deadline el))
+         (sc-ts     (org-element-property :scheduled el))
+         (deadline  (when dl-ts (org-element-property :raw-value dl-ts)))
+         (scheduled (when sc-ts (org-element-property :raw-value sc-ts)))
+         (parts
+          (delq nil
+                (list
+                 (when deadline
+                   (let ((days (org-better-agenda--days-until deadline)))
+                     (when days
+                       (propertize (format "%3s" (format "%dd" days))
+                                   'face 'org-better-agenda-deadline-date-face))))))))
     (string-join parts " · ")))
 
 
@@ -343,7 +375,7 @@ Uses the `time-of-day' text property rather than layout heuristics."
         org-agenda-prefix-format
         '((agenda . "  %-12t %s")
           (todo   . " %i ")
-          (tags   . " %i %(org-better-agenda-entry-date-info) ")
+          (tags   . " %i %(org-better-agenda-entry-days-left) ")
           (search . " %i "))))
 
 ;;; Custom commands
@@ -360,7 +392,7 @@ Uses the `time-of-day' text property rather than layout heuristics."
               (org-agenda-overriding-header "")
               (org-agenda-cmp-user-defined #'org-better-agenda-cmp-allday-first)
               (org-agenda-sorting-strategy '(user-defined-up time-up))))
-     (tags-todo "+DEADLINE<>\"\"|+SCHEDULED<>\"\""
+     (tags-todo "+DEADLINE<>\"\""
                 ((org-agenda-overriding-header
                   ,(org-better-agenda--str 'must-do-header))
                  (org-agenda-cmp-user-defined
