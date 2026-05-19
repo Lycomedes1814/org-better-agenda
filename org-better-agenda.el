@@ -175,9 +175,7 @@ Shows both dates when present, separated by \" · \"."
                 (list
                  (when deadline
                    (let ((days (org-better-agenda--days-until deadline)))
-                     (when days
-                       (propertize (format "%3s" (format "%dd" days))
-                                   'face 'org-better-agenda-deadline-date-face))))))))
+                     (when days (format "%3s" (format "%dd" days)))))))))
     (string-join parts " · ")))
 
 
@@ -270,6 +268,18 @@ DATE is a calendar list (MONTH DAY YEAR).  Mirrors the layout of
   '((t :inherit error :weight bold))
   "Face for deadline dates in custom agenda sections.")
 
+(defface org-better-agenda-days-urgent-face
+  '((t :foreground "#e05050" :weight bold))
+  "Nd countdown face for deadlines within 7 days.")
+
+(defface org-better-agenda-days-soon-face
+  '((t :foreground "#e0a000" :weight bold))
+  "Nd countdown face for deadlines within 8–14 days.")
+
+(defface org-better-agenda-days-later-face
+  '((t :foreground "#8a8a6a" :weight bold))
+  "Nd countdown face for deadlines 15+ days away.")
+
 (defface org-better-agenda-scheduled-date-face
   '((t :inherit font-lock-type-face :weight bold))
   "Face for scheduled dates in custom agenda sections.")
@@ -321,6 +331,18 @@ Uses the `time-of-day' text property rather than layout heuristics."
         (put-text-property (match-beginning 2) (match-end 2)
                            'face 'org-better-agenda-scheduled-date-face)))))
 
+(defun org-better-agenda-highlight-days-left ()
+  "Highlight Nd countdown strings in the must-do section with urgency colors."
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward "\\( *\\(-?[0-9]+\\)d\\)\\b" nil t)
+      (when (eq (get-text-property (line-beginning-position) 'org-agenda-type) 'tags)
+        (let* ((days (string-to-number (match-string 2)))
+               (face (cond ((<= days 7)  'org-better-agenda-days-urgent-face)
+                           ((<= days 14) 'org-better-agenda-days-soon-face)
+                           (t            'org-better-agenda-days-later-face))))
+          (put-text-property (match-beginning 1) (match-end 1) 'face face))))))
+
 ;;; Finalize hook
 
 (defun org-better-agenda-finalize ()
@@ -329,7 +351,8 @@ Uses the `time-of-day' text property rather than layout heuristics."
   (when (fboundp 'org-modern-agenda)
     (org-modern-agenda))
   (org-better-agenda-highlight-times)
-  (org-better-agenda-highlight-date-info))
+  (org-better-agenda-highlight-date-info)
+  (org-better-agenda-highlight-days-left))
 
 (add-hook 'org-agenda-finalize-hook #'org-better-agenda-finalize)
 
