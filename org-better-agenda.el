@@ -413,6 +413,7 @@ Uses the `time-of-day' text property rather than layout heuristics."
               (org-agenda-start-day "+0d")
               (org-agenda-start-on-weekday nil)
               (org-agenda-overriding-header "")
+              (org-agenda-entry-types '(:scheduled :timestamp :sexp))
               (org-agenda-cmp-user-defined #'org-better-agenda-cmp-allday-first)
               (org-agenda-sorting-strategy '(user-defined-up time-up))))
      (tags-todo "+DEADLINE<>\"\""
