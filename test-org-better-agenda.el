@@ -86,6 +86,56 @@ the buffer is not killed out from under the marker during BODY."
   "Repeating timestamps should parse without error."
   (should (equal (org-better-agenda-format-date "<2026-04-04 Sat +1w>") "4 April")))
 
+;;; org-better-agenda--days-until
+
+(ert-deftest ora/days-until/same-calendar-day-is-zero ()
+  (cl-letf (((symbol-function 'current-time)
+             (lambda () (encode-time 0 0 12 26 6 2026))))
+    (should (= 0 (org-better-agenda--days-until "<2026-06-26 Fri 23:00>")))))
+
+(ert-deftest ora/days-until/timed-sixtieth-calendar-day-is-sixty ()
+  (cl-letf (((symbol-function 'current-time)
+             (lambda () (encode-time 0 0 12 26 6 2026))))
+    (should (= 60 (org-better-agenda--days-until "<2026-08-25 Tue 23:00>")))))
+
+;;; org-better-agenda--skip-distant-deadline
+
+(ert-deftest ora/skip-distant-deadline/keeps-deadline-within-limit ()
+  (let ((org-better-agenda-must-do-deadline-days 60))
+    (ora-test--with-org-entry "* Task\nDEADLINE: <2026-07-01 Wed>\n"
+      (cl-letf (((symbol-function 'org-better-agenda--days-until)
+                 (lambda (_) 30)))
+        (should (null (org-better-agenda--skip-distant-deadline)))))))
+
+(ert-deftest ora/skip-distant-deadline/keeps-deadline-on-limit ()
+  (let ((org-better-agenda-must-do-deadline-days 60))
+    (ora-test--with-org-entry "* Task\nDEADLINE: <2026-08-25 Tue>\n"
+      (cl-letf (((symbol-function 'org-better-agenda--days-until)
+                 (lambda (_) 60)))
+        (should (null (org-better-agenda--skip-distant-deadline)))))))
+
+(ert-deftest ora/skip-distant-deadline/keeps-overdue-deadline ()
+  (let ((org-better-agenda-must-do-deadline-days 60))
+    (ora-test--with-org-entry "* Task\nDEADLINE: <2026-06-01 Mon>\n"
+      (cl-letf (((symbol-function 'org-better-agenda--days-until)
+                 (lambda (_) -25)))
+        (should (null (org-better-agenda--skip-distant-deadline)))))))
+
+(ert-deftest ora/skip-distant-deadline/skips-deadline-beyond-limit ()
+  (let ((org-better-agenda-must-do-deadline-days 60))
+    (ora-test--with-org-entry "* Task\nDEADLINE: <2026-08-26 Wed>\n"
+      (cl-letf (((symbol-function 'org-better-agenda--days-until)
+                 (lambda (_) 61)))
+        (should (= (point-max)
+                   (org-better-agenda--skip-distant-deadline)))))))
+
+(ert-deftest ora/skip-distant-deadline/keeps-all-when-limit-disabled ()
+  (let ((org-better-agenda-must-do-deadline-days nil))
+    (ora-test--with-org-entry "* Task\nDEADLINE: <2027-01-01 Fri>\n"
+      (cl-letf (((symbol-function 'org-better-agenda--days-until)
+                 (lambda (_) 189)))
+        (should (null (org-better-agenda--skip-distant-deadline)))))))
+
 ;;; org-better-agenda-format-date — Norwegian
 
 (ert-deftest ora/format-date/norwegian-april ()

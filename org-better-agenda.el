@@ -109,6 +109,13 @@ After changing this interactively, call `org-better-agenda-setup' to apply."
          (when (featurep 'org-better-agenda)
            (org-better-agenda-setup))))
 
+(defcustom org-better-agenda-must-do-deadline-days 60
+  "Maximum days ahead to show deadline items in the Must do section.
+Overdue deadlines are still shown.  Set to nil to show all deadlines."
+  :type '(choice (const :tag "No limit" nil)
+                 (integer :tag "Days"))
+  :group 'org-better-agenda)
+
 (defun org-better-agenda--str (key)
   "Return the localized string for KEY in `org-better-agenda-language'."
   (let ((table (alist-get org-better-agenda-language org-better-agenda-language-setup)))
@@ -133,16 +140,24 @@ Returns nil on any parse error so a bad timestamp never breaks the agenda."
   "Return integer days from today until DATESTR, or nil on parse error."
   (when datestr
     (condition-case nil
-        (let* ((ts    (org-time-string-to-time datestr))
-               (today (float-time (apply #'encode-time
-                                         (let ((d (decode-time)))
-                                           (setf (nth 0 d) 0
-                                                 (nth 1 d) 0
-                                                 (nth 2 d) 0)
-                                           d))))
-               (diff  (- (float-time ts) today)))
-          (round (/ diff 86400)))
+        (- (org-time-string-to-absolute datestr)
+           (time-to-days (current-time)))
       (error nil))))
+
+(defun org-better-agenda--skip-current-subtree ()
+  "Return the position after the current subtree for agenda skipping."
+  (save-excursion
+    (or (outline-next-heading) (goto-char (point-max)))
+    (point)))
+
+(defun org-better-agenda--skip-distant-deadline ()
+  "Skip current entry when its DEADLINE is beyond the Must do deadline limit."
+  (let ((deadline (org-entry-get nil "DEADLINE"))
+        (limit org-better-agenda-must-do-deadline-days))
+    (when (and deadline limit)
+      (let ((days (org-better-agenda--days-until deadline)))
+        (when (and days (> days limit))
+          (org-better-agenda--skip-current-subtree))))))
 
 (defun org-better-agenda-entry-date-info ()
   "Return readable DEADLINE/SCHEDULED info for the current agenda entry.
@@ -419,6 +434,8 @@ Uses the `time-of-day' text property rather than layout heuristics."
      (tags-todo "+DEADLINE<>\"\""
                 ((org-agenda-overriding-header
                   ,(org-better-agenda--str 'must-do-header))
+                 (org-agenda-skip-function
+                  #'org-better-agenda--skip-distant-deadline)
                  (org-agenda-cmp-user-defined
                   #'org-better-agenda-cmp-earliest-date)
                  (org-agenda-sorting-strategy
